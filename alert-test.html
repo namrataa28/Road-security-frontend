@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alert System Test - Road Safety Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .test-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .title {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .test-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .test-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .test-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .test-btn.critical {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .test-btn.critical:hover {
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+        }
+
+        .test-btn.high {
+            background: linear-gradient(135deg, #fd7e14, #e8590c);
+            box-shadow: 0 4px 15px rgba(253, 126, 20, 0.3);
+        }
+
+        .test-btn.high:hover {
+            box-shadow: 0 6px 20px rgba(253, 126, 20, 0.4);
+        }
+
+        .test-btn.weather {
+            background: linear-gradient(135deg, #6f42c1, #5a32a3);
+            box-shadow: 0 4px 15px rgba(111, 66, 193, 0.3);
+        }
+
+        .test-btn.weather:hover {
+            box-shadow: 0 6px 20px rgba(111, 66, 193, 0.4);
+        }
+
+        .test-btn.accident {
+            background: linear-gradient(135deg, #e83e8c, #d63384);
+            box-shadow: 0 4px 15px rgba(232, 62, 140, 0.3);
+        }
+
+        .test-btn.accident:hover {
+            box-shadow: 0 6px 20px rgba(232, 62, 140, 0.4);
+        }
+
+        .test-btn.combined {
+            background: linear-gradient(135deg, #20c997, #1aa179);
+            box-shadow: 0 4px 15px rgba(32, 201, 151, 0.3);
+        }
+
+        .test-btn.combined:hover {
+            box-shadow: 0 6px 20px rgba(32, 201, 151, 0.4);
+        }
+
+        .instructions {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .instructions ul {
+            color: #666;
+            line-height: 1.6;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .alert-demo {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            max-width: 90vw;
+            width: 500px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 2px solid;
+            animation: alertSlideIn 0.5s ease-out;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: none;
+        }
+
+        .alert-demo.critical {
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.95), rgba(200, 35, 51, 0.95));
+            border-color: #dc3545;
+            color: white;
+        }
+
+        .alert-demo.high {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.95), rgba(255, 152, 0, 0.95));
+            border-color: #ffc107;
+            color: #212529;
+        }
+
+        .alert-header {
+            display: flex;
+            align-items: center;
+            padding: 16px 20px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .alert-icon {
+            font-size: 24px;
+            margin-right: 12px;
+            animation: alertPulse 2s infinite;
+        }
+
+        .alert-title {
+            flex: 1;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .alert-close {
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            line-height: 1;
+        }
+
+        .alert-close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .alert-content {
+            padding: 16px 20px;
+        }
+
+        .alert-message {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+
+        .alert-details {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .risk-score-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .score-label {
+            font-weight: 500;
+        }
+
+        .score-value {
+            font-weight: 700;
+            font-size: 16px;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .risk-level {
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .alert-recommendations {
+            font-size: 14px;
+        }
+
+        .alert-recommendations strong {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .alert-recommendations ul {
+            margin: 0;
+            padding-left: 16px;
+            list-style-type: disc;
+        }
+
+        .alert-recommendations li {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        .alert-footer {
+            padding: 12px 20px 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+
+        .alert-timer {
+            font-size: 12px;
+            opacity: 0.8;
+            font-style: italic;
+        }
+
+        @keyframes alertSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        @keyframes alertPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .test-container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .test-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .alert-demo {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+                width: auto;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 class="title">🚨 Alert System Test</h1>
+        <p class="subtitle">Test different high-risk scenarios to see how alerts work</p>
+        
+        <div class="test-buttons">
+            <button class="test-btn critical" onclick="showAlert('critical')">
+                🚨 Critical Risk<br><small>Score: 95</small>
+            </button>
+            
+            <button class="test-btn high" onclick="showAlert('highSpeed')">
+                🏎️ High Speed<br><small>Score: 85</small>
+            </button>
+            
+            <button class="test-btn weather" onclick="showAlert('badWeather')">
+                🌧️ Bad Weather<br><small>Score: 80</small>
+            </button>
+            
+            <button class="test-btn accident" onclick="showAlert('accidentHotspot')">
+                ⚠️ Accident Hotspot<br><small>Score: 75</small>
+            </button>
+            
+            <button class="test-btn combined" onclick="showAlert('combined')">
+                🔥 Combined Risks<br><small>Score: 88</small>
+            </button>
+        </div>
+
+        <div class="instructions">
+            <h3>How to Test:</h3>
+            <ul>
+                <li>Click any button above to trigger a high-risk alert</li>
+                <li>Alerts appear at the top of the screen</li>
+                <li>Alerts auto-dismiss after 10 seconds</li>
+                <li>You can manually dismiss with the "×" button</li>
+                <li>Each scenario shows different risk factors and recommendations</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Alert Demo -->
+    <div id="alertDemo" class="alert-demo">
+        <div class="alert-header">
+            <div class="alert-icon">🚨</div>
+            <div class="alert-title">HIGH RISK ALERT</div>
+            <button class="alert-close" onclick="hideAlert()">×</button>
+        </div>
+        
+        <div class="alert-content">
+            <div class="alert-message" id="alertMessage">
+                High risk area detected! Risk score: 85
+            </div>
+            
+            <div class="alert-details">
+                <div class="risk-score-display">
+                    <span class="score-label">Risk Score:</span>
+                    <span class="score-value" id="alertScore">85</span>
+                    <span class="risk-level" id="alertLevel">Bad</span>
+                </div>
+                
+                <div class="alert-recommendations">
+                    <strong>Recommendations:</strong>
+                    <ul id="alertRecommendations">
+                        <li>Reduce speed and increase following distance</li>
+                        <li>Stay alert and be prepared to react</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert-footer">
+            <div class="alert-timer">
+                Auto-dismiss in <span id="countdown">10</span> seconds
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const alertScenarios = {
+            critical: {
+                score: 95,
+                level: "Bad",
+                message: "🚨 CRITICAL ALERT: Multiple high-risk factors detected! Severe weather, excessive speed, and accident hotspot area.",
+                recommendations: [
+                    "Immediately reduce speed to safe levels",
+                    "Use hazard lights and pull over if necessary",
+                    "Avoid this area if possible",
+                    "Stay alert and be prepared for emergencies"
+                ]
+            },
+            highSpeed: {
+                score: 85,
+                level: "Bad",
+                message: "🏎️ HIGH SPEED ALERT: Excessive speed detected! Current speed of 140 km/h is dangerous.",
+                recommendations: [
+                    "Slow down immediately to safe speed",
+                    "Check speed limit signs",
+                    "Increase following distance",
+                    "Stay alert and be prepared to react"
+                ]
+            },
+            badWeather: {
+                score: 80,
+                level: "Bad",
+                message: "🌧️ WEATHER ALERT: Dangerous weather conditions detected! Heavy rain with poor visibility.",
+                recommendations: [
+                    "Use headlights and reduce speed",
+                    "Increase following distance significantly",
+                    "Avoid sudden maneuvers",
+                    "Consider pulling over if conditions worsen"
+                ]
+            },
+            accidentHotspot: {
+                score: 75,
+                level: "Bad",
+                message: "⚠️ ACCIDENT HOTSPOT ALERT: High accident risk area detected! 18 accidents reported nearby.",
+                recommendations: [
+                    "Reduce speed and increase following distance",
+                    "Be extra cautious at intersections",
+                    "Watch for pedestrians and cyclists",
+                    "Stay alert and be prepared to react"
+                ]
+            },
+            combined: {
+                score: 88,
+                level: "Bad",
+                message: "🔥 COMBINED RISK ALERT: Multiple risk factors detected! High speed, bad weather, and accident hotspot.",
+                recommendations: [
+                    "Immediately reduce speed to safe levels",
+                    "Use headlights and hazard lights",
+                    "Increase following distance significantly",
+                    "Consider alternative route if possible",
+                    "Stay alert and be prepared for emergencies"
+                ]
+            }
+        };
+
+        let countdownTimer;
+
+        function showAlert(scenario) {
+            const alert = document.getElementById('alertDemo');
+            const scenarioData = alertScenarios[scenario];
+            
+            // Update alert content
+            document.getElementById('alertMessage').textContent = scenarioData.message;
+            document.getElementById('alertScore').textContent = scenarioData.score;
+            document.getElementById('alertLevel').textContent = scenarioData.level;
+            
+            // Update recommendations
+            const recommendationsList = document.getElementById('alertRecommendations');
+            recommendationsList.innerHTML = '';
+            scenarioData.recommendations.forEach(rec => {
+                const li = document.createElement('li');
+                li.textContent = rec;
+                recommendationsList.appendChild(li);
+            });
+            
+            // Set alert class based on score
+            alert.className = 'alert-demo';
+            if (scenarioData.score >= 90) {
+                alert.classList.add('critical');
+            } else {
+                alert.classList.add('high');
+            }
+            
+            // Show alert
+            alert.style.display = 'block';
+            
+            // Start countdown
+            startCountdown();
+        }
+
+        function hideAlert() {
+            const alert = document.getElementById('alertDemo');
+            alert.style.display = 'none';
+            clearInterval(countdownTimer);
+        }
+
+        function startCountdown() {
+            let timeLeft = 10;
+            const countdownElement = document.getElementById('countdown');
+            
+            countdownTimer = setInterval(() => {
+                timeLeft--;
+                countdownElement.textContent = timeLeft;
+                
+                if (timeLeft <= 0) {
+                    hideAlert();
+                }
+            }, 1000);
+        }
+
+        // Auto-hide alert after 10 seconds
+        function autoHideAlert() {
+            setTimeout(() => {
+                hideAlert();
+            }, 10000);
+        }
+    </script>
+</body>
+</html>
+

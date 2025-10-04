@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alert System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .high-risk {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .moderate-risk {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        .low-risk {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚨 Road Safety Alert System Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Scenarios</h2>
+        <p>Click the buttons below to test different risk scenarios. The alert system should trigger when risk score >= 70.</p>
+        
+        <button class="test-button" onclick="testHighRisk()">Test High Risk (Score: 85)</button>
+        <button class="test-button" onclick="testModerateRisk()">Test Moderate Risk (Score: 45)</button>
+        <button class="test-button" onclick="testLowRisk()">Test Low Risk (Score: 15)</button>
+        <button class="test-button" onclick="testCriticalRisk()">Test Critical Risk (Score: 95)</button>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Alert System Features</h2>
+        <ul>
+            <li>✅ Triggers when risk score >= 70 (Bad level)</li>
+            <li>✅ Shows specific alert messages based on risk factors</li>
+            <li>✅ Auto-dismisses after 10 seconds</li>
+            <li>✅ Manual dismiss with close button</li>
+            <li>✅ Responsive design for mobile and desktop</li>
+            <li>✅ Visual animations and color coding</li>
+            <li>✅ Provides safety recommendations</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>How to Test in the App</h2>
+        <ol>
+            <li>Start the backend: <code>cd Backend && python backend.py</code></li>
+            <li>Start the frontend: <code>cd Frontend/road-safety-frontend && npm run dev</code></li>
+            <li>Open the app in your browser</li>
+            <li>Click "Start Live Tracking" to begin GPS tracking</li>
+            <li>Click on different locations on the map to test risk assessments</li>
+            <li>Look for alert notifications when risk score >= 70</li>
+        </ol>
+    </div>
+
+    <script>
+        function testHighRisk() {
+            const mockReport = {
+                overall_risk_score: 85,
+                risk_level: "Bad",
+                factors: {
+                    accident_hotspot: {
+                        score: 80,
+                        label: "Very High",
+                        message: "15 accidents reported nearby."
+                    },
+                    weather: {
+                        score: 70,
+                        description: "Heavy rain with poor visibility"
+                    },
+                    current_speed: {
+                        score: 90,
+                        speed_kmh: 120,
+                        message: "Current speed of 120 km/h."
+                    }
+                }
+            };
+            showTestResult("High Risk Test", mockReport, "high-risk");
+        }
+
+        function testModerateRisk() {
+            const mockReport = {
+                overall_risk_score: 45,
+                risk_level: "Moderate",
+                factors: {
+                    accident_hotspot: {
+                        score: 30,
+                        label: "Moderate",
+                        message: "3 accidents reported nearby."
+                    },
+                    weather: {
+                        score: 40,
+                        description: "Light rain"
+                    },
+                    current_speed: {
+                        score: 50,
+                        speed_kmh: 80,
+                        message: "Current speed of 80 km/h."
+                    }
+                }
+            };
+            showTestResult("Moderate Risk Test", mockReport, "moderate-risk");
+        }
+
+        function testLowRisk() {
+            const mockReport = {
+                overall_risk_score: 15,
+                risk_level: "Good",
+                factors: {
+                    accident_hotspot: {
+                        score: 10,
+                        label: "Low",
+                        message: "No historical accidents reported nearby."
+                    },
+                    weather: {
+                        score: 20,
+                        description: "Clear sky"
+                    },
+                    current_speed: {
+                        score: 5,
+                        speed_kmh: 50,
+                        message: "Current speed of 50 km/h."
+                    }
+                }
+            };
+            showTestResult("Low Risk Test", mockReport, "low-risk");
+        }
+
+        function testCriticalRisk() {
+            const mockReport = {
+                overall_risk_score: 95,
+                risk_level: "Bad",
+                factors: {
+                    accident_hotspot: {
+                        score: 100,
+                        label: "Very High",
+                        message: "25+ accidents reported nearby."
+                    },
+                    weather: {
+                        score: 90,
+                        description: "Severe storm with zero visibility"
+                    },
+                    current_speed: {
+                        score: 95,
+                        speed_kmh: 150,
+                        message: "Current speed of 150 km/h."
+                    }
+                }
+            };
+            showTestResult("Critical Risk Test", mockReport, "high-risk");
+        }
+
+        function showTestResult(testName, report, riskClass) {
+            const resultsDiv = document.getElementById('test-results');
+            const alertTriggered = report.overall_risk_score >= 70;
+            
+            const resultHTML = `
+                <div class="test-result ${riskClass}">
+                    <h3>${testName}</h3>
+                    <p><strong>Risk Score:</strong> ${report.overall_risk_score}/100 (${report.risk_level})</p>
+                    <p><strong>Alert Triggered:</strong> ${alertTriggered ? '✅ YES' : '❌ NO'}</p>
+                    <p><strong>Accident Risk:</strong> ${report.factors.accident_hotspot.score} (${report.factors.accident_hotspot.label})</p>
+                    <p><strong>Weather Risk:</strong> ${report.factors.weather.score} - ${report.factors.weather.description}</p>
+                    <p><strong>Speed Risk:</strong> ${report.factors.current_speed.score} - ${report.factors.current_speed.speed_kmh} km/h</p>
+                    ${alertTriggered ? '<p style="color: #dc3545; font-weight: bold;">🚨 ALERT SHOULD BE DISPLAYED TO DRIVER</p>' : ''}
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = resultHTML;
+        }
+    </script>
+</body>
+</html>
+
