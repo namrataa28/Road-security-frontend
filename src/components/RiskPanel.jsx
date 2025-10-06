@@ -32,6 +32,42 @@ export default function RiskPanel({ report, weatherForecast }) {
       </div>
 
       <div className="risk-factors">
+        {weatherForecast && (
+          <div className="risk-factor">
+            <div className="factor-header">
+              <h4>🌦️ Weather Forecast</h4>
+              <span className="factor-score" style={{ color: '#2563eb' }}>
+                {weatherForecast.temp ? `${Math.round(weatherForecast.temp)}°C` : 'N/A'}
+              </span>
+            </div>
+            <div className="factor-content">
+              <div className="factor-description" style={{ textTransform: 'capitalize' }}>
+                {weatherForecast.description || 'No data'}
+              </div>
+              {weatherForecast.time && (
+                <div className="factor-message" style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  📅 {new Date(weatherForecast.time).toLocaleString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
+              )}
+              {weatherForecast.wind_speed !== undefined && (
+                <div className="factor-message" style={{ fontSize: '12px', marginTop: '2px' }}>
+                  💨 Wind: {weatherForecast.wind_speed.toFixed(1)} m/s
+                </div>
+              )}
+              {weatherForecast.visibility !== undefined && (
+                <div className="factor-message" style={{ fontSize: '12px', marginTop: '2px' }}>
+                  👁️ Visibility: {(weatherForecast.visibility / 1000).toFixed(1)} km
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="risk-factor">
           <div className="factor-header">
             <h4>🚨 Accident Hotspot</h4>
@@ -72,42 +108,6 @@ export default function RiskPanel({ report, weatherForecast }) {
             <div className="factor-message">{factors.current_speed.message}</div>
           </div>
         </div>
-
-        {weatherForecast && (
-          <div className="risk-factor">
-            <div className="factor-header">
-              <h4>🌦️ Weather Forecast</h4>
-              <span className="factor-score" style={{ color: '#2563eb' }}>
-                {weatherForecast.temp ? `${Math.round(weatherForecast.temp)}°C` : 'N/A'}
-              </span>
-            </div>
-            <div className="factor-content">
-              <div className="factor-description" style={{ textTransform: 'capitalize' }}>
-                {weatherForecast.description || 'No data'}
-              </div>
-              {weatherForecast.time && (
-                <div className="factor-message" style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                  📅 {new Date(weatherForecast.time).toLocaleString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </div>
-              )}
-              {weatherForecast.wind_speed !== undefined && (
-                <div className="factor-message" style={{ fontSize: '12px', marginTop: '2px' }}>
-                  💨 Wind: {weatherForecast.wind_speed.toFixed(1)} m/s
-                </div>
-              )}
-              {weatherForecast.visibility !== undefined && (
-                <div className="factor-message" style={{ fontSize: '12px', marginTop: '2px' }}>
-                  👁️ Visibility: {(weatherForecast.visibility / 1000).toFixed(1)} km
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

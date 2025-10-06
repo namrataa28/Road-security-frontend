@@ -130,14 +130,107 @@ export default function MapComponent({ onTrackingChange }) {
 
   async function geocodeDestination(query) {
     if (!query) return null
+    
+    const queryLower = query.toLowerCase()
+    
+    // Hardcoded coordinates for known locations that Mapbox gets wrong
+    const knownLocations = {
+      'jecrc university': [75.876177, 26.775462], // JECRC University, Ramchandrapura, Vidhani, Jaipur
+      'jecrc university jaipur': [75.876177, 26.775462],
+      'jecrc university vidhani': [75.876177, 26.775462],
+    }
+    
+    // Check if query matches a known location
+    for (const [key, coords] of Object.entries(knownLocations)) {
+      if (queryLower.includes(key) || queryLower === key) {
+        console.log(`Using hardcoded coordinates for: ${key}`)
+        return coords
+      }
+    }
+    
     try {
-      const res = await axios.get(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}&limit=1`, { timeout: 8000 })
-      const feat = res.data?.features?.[0]
-      if (feat?.center) return feat.center
-      setError('Destination not found. Try a different query.')
+      // Rajasthan bounding box - limits search to Rajasthan state
+      const rajasthanBbox = '69.5,23.0,78.5,30.5'
+      
+      // Add proximity bias to current location if available, otherwise use Jaipur
+      let proximityParam = ''
+      if (originCoord) {
+        proximityParam = `&proximity=${originCoord[0]},${originCoord[1]}`
+      } else {
+        proximityParam = '&proximity=75.7873,26.9124'
+      }
+      
+      // Request multiple results with Rajasthan bbox for better accuracy
+      const res = await axios.get(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}&limit=10&fuzzyMatch=true&country=IN&bbox=${rajasthanBbox}${proximityParam}&types=poi,address,place`,
+        { timeout: 10000 }
+      )
+      
+      const features = res.data?.features || []
+      
+      if (features.length === 0) {
+        setError(`Destination "${query}" not found in Rajasthan. Try adding city name (e.g., "${query}, Jaipur").`)
+        return null
+      }
+      
+      // Log all results for debugging
+      console.log('Geocoding results for:', query)
+      features.forEach((f, i) => console.log(`${i + 1}. ${f.place_name} [${f.center}]`))
+      
+      // Smart prioritization: Look for exact or close matches first
+      
+      // 1. Try to find exact name match
+      let feat = features.find(f => f.text.toLowerCase() === queryLower)
+      
+      // 2. Special handling for JECRC University - prioritize Vidhani location
+      if (!feat && queryLower.includes('jecrc') && queryLower.includes('university')) {
+        feat = features.find(f => {
+          const placeName = f.place_name.toLowerCase()
+          return placeName.includes('vidhani') || placeName.includes('ramchandrapura')
+        })
+        // If still not found, exclude results with 'college' or 'sitapura'
+        if (!feat) {
+          feat = features.find(f => {
+            const placeName = f.place_name.toLowerCase()
+            return !placeName.includes('college') && !placeName.includes('sitapura')
+          })
+        }
+      }
+      
+      // 3. If no exact match, find best match with Rajasthan cities
+      if (!feat) {
+        const rajasthanCities = ['jaipur', 'jodhpur', 'udaipur', 'ajmer', 'kota', 'bikaner', 'alwar', 'bharatpur', 'sikar']
+        feat = features.find(f => {
+          const placeName = f.place_name.toLowerCase()
+          return rajasthanCities.some(city => placeName.includes(city))
+        })
+      }
+      
+      // 4. If still no match, find any result with 'rajasthan' in name
+      if (!feat) {
+        feat = features.find(f => f.place_name.toLowerCase().includes('rajasthan'))
+      }
+      
+      // 5. Fall back to first result (bbox ensures it's in Rajasthan)
+      if (!feat) {
+        feat = features[0]
+      }
+      
+      if (feat?.center) {
+        console.log('Selected location:', feat.place_name, 'Coordinates:', feat.center)
+        return feat.center
+      }
+      
+      setError(`Destination "${query}" not found in Rajasthan. Try adding city name (e.g., "${query}, Jaipur") or use a more specific address.`)
     } catch (e) {
       console.error('Geocoding error', e)
-      setError('Failed to geocode destination.')
+      if (e.code === 'ECONNABORTED' || e.message.includes('timeout')) {
+        setError('Geocoding request timed out. Please check your internet connection and try again.')
+      } else if (e.response?.status === 401) {
+        setError('Invalid Mapbox token. Please check your .env configuration.')
+      } else {
+        setError('Failed to find destination. Please check your spelling or try a different search term.')
+      }
     }
     return null
   }
@@ -147,12 +240,23 @@ export default function MapComponent({ onTrackingChange }) {
     const map = mapRef.current
     try {
       setIsLoading(true)
-      const res = await axios.get(`https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${dest[0]},${dest[1]}?alternatives=false&geometries=geojson&overview=full&annotations=congestion&access_token=${import.meta.env.VITE_MAPBOX_TOKEN}`, { timeout: 12000 })
-      const route = res.data?.routes?.[0]
-      if (!route) { setError('No route found between origin and destination.'); return }
+      setError(null)
+      
+      // Try with alternatives first, fallback to single route if needed
+      let url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${dest[0]},${dest[1]}?alternatives=true&geometries=geojson&overview=full&annotations=congestion&access_token=${import.meta.env.VITE_MAPBOX_TOKEN}`
+      
+      const res = await axios.get(url, { timeout: 15000 })
+      
+      if (!res.data?.routes || res.data.routes.length === 0) {
+        setError('No route found between your location and destination. The destination may be too far or unreachable by road.')
+        return
+      }
+      
+      const route = res.data.routes[0]
       const coords = route.geometry.coordinates
       const congestion = route.legs?.[0]?.annotation?.congestion || []
       const features = []
+      
       if (congestion.length > 0) {
         for (let i = 0; i < congestion.length && i < coords.length - 1; i++) {
           features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [coords[i], coords[i + 1]] }, properties: { congestion: congestion[i] || 'low' } })
@@ -164,18 +268,34 @@ export default function MapComponent({ onTrackingChange }) {
         features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: { congestion: 'moderate' } })
         setRouteTrafficInfo({ duration: Math.round(route.duration / 60), distance: (route.distance / 1000).toFixed(1), noData: true })
       }
+      
       if (map.getLayer('route-line')) map.removeLayer('route-line')
       if (map.getSource('route')) map.removeSource('route')
       map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features } })
       map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': ['match', ['get', 'congestion'], 'low', '#22c55e', 'moderate', '#f59e0b', 'heavy', '#ef4444', 'severe', '#991b1b', 'unknown', '#9ca3af', '#f59e0b'], 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 15, 8, 18, 12], 'line-opacity': 0.9 } }, (map.getStyle().layers || []).find(l => l.type === 'symbol')?.id)
+      
       if (!currentMarkerRef.current) currentMarkerRef.current = new mapboxgl.Marker({ color: '#1E90FF' }).setLngLat(origin).addTo(map)
       else currentMarkerRef.current.setLngLat(origin)
       if (!destMarkerRef.current) destMarkerRef.current = new mapboxgl.Marker({ color: '#ef4444' }).setLngLat(dest).addTo(map)
       else destMarkerRef.current.setLngLat(dest)
+      
       map.fitBounds(coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0])), { padding: 60, duration: 800 })
+      
+      console.log(`Route found: ${(route.distance / 1000).toFixed(1)} km, ${Math.round(route.duration / 60)} min`)
     } catch (e) {
       console.error('Directions error', e)
-      setError('Failed to fetch route. Please try again.')
+      
+      if (e.code === 'ECONNABORTED' || e.message.includes('timeout')) {
+        setError('Route request timed out. Please check your internet connection and try again.')
+      } else if (e.response?.status === 401) {
+        setError('Invalid Mapbox token. Please check your .env configuration.')
+      } else if (e.response?.status === 422) {
+        setError('Invalid coordinates. The destination may be unreachable or too far from your current location.')
+      } else if (e.response?.data?.message) {
+        setError(`Route error: ${e.response.data.message}`)
+      } else {
+        setError('Failed to fetch route. Please ensure both locations are valid and reachable by road.')
+      }
     } finally { setIsLoading(false) }
   }
 
@@ -193,7 +313,9 @@ export default function MapComponent({ onTrackingChange }) {
   async function handleRouteSubmit(e) {
     e?.preventDefault?.()
     setError(null)
+    
     if (!destinationQuery) { setError('Please enter a destination'); return }
+    
     let origin = originCoord
     if (!origin) {
       try {
@@ -210,8 +332,10 @@ export default function MapComponent({ onTrackingChange }) {
         return
       } finally { setIsLoading(false) }
     }
+    
     const dest = await geocodeDestination(destinationQuery)
     if (!dest) return
+    
     setDestinationCoord(dest)
     await fetchAndDrawRoute(origin, dest)
   }
@@ -312,18 +436,96 @@ export default function MapComponent({ onTrackingChange }) {
     lastPos.current = { lat, lon, timestamp: position.timestamp, speed: speedKmh }
     setCurrentSpeed(Math.max(0, Math.round(speedKmh)))
     setOriginCoord([lon, lat])
-    if (!currentMarkerRef.current) currentMarkerRef.current = new mapboxgl.Marker({ color: '#1E90FF' }).setLngLat([lon, lat]).addTo(mapRef.current)
-    else currentMarkerRef.current.setLngLat([lon, lat])
+    if (!currentMarkerRef.current) {
+      currentMarkerRef.current = new mapboxgl.Marker({ color: '#1E90FF' }).setLngLat([lon, lat]).addTo(mapRef.current)
+      // Create initial popup with current speed
+      const initialPopup = new mapboxgl.Popup({ 
+        offset: 14, 
+        closeButton: true,
+        closeOnClick: false,
+        className: 'custom-popup'
+      }).setHTML(
+        `<style>
+          .mapboxgl-popup-close-button {
+            font-size: 14px !important;
+            width: 18px !important;
+            height: 18px !important;
+            padding: 0 !important;
+            line-height: 18px !important;
+            right: 2px !important;
+            top: 2px !important;
+          }
+          .custom-popup .mapboxgl-popup-content {
+            padding: 10px 14px 10px 10px !important;
+            min-width: 160px !important;
+          }
+        </style>
+        <div style="font-family: Inter, Arial, sans-serif; text-align: center;">
+          <div style="font-size: 10px; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">📍 Current Location</div>
+          <div style="display: flex; justify-content: space-around; align-items: center; gap: 12px; margin-top: 6px;">
+            <div>
+              <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Speed</div>
+              <div style="font-size: 18px; font-weight: bold; color: #2563eb;">${Math.round(speedKmh)}</div>
+              <div style="font-size: 10px; color: #888;">km/h</div>
+            </div>
+            <div style="width: 1px; height: 40px; background: #e0e0e0;"></div>
+            <div>
+              <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Risk</div>
+              <div style="font-size: 18px; font-weight: bold; color: #999;">--</div>
+              <div style="font-size: 10px; color: #888;">score</div>
+            </div>
+          </div>
+        </div>`
+      )
+      currentMarkerRef.current.setPopup(initialPopup)
+      initialPopup.addTo(mapRef.current)
+    } else {
+      currentMarkerRef.current.setLngLat([lon, lat])
+      // Update popup with current speed and risk if it exists
+      if (currentMarkerRef.current.getPopup()) {
+        const currentRisk = riskReport?.overall_risk_score
+        const riskColor = currentRisk ? getColorForScore(currentRisk) : '#999'
+        currentMarkerRef.current.getPopup().setHTML(
+          `<style>
+            .mapboxgl-popup-close-button {
+              font-size: 14px !important;
+              width: 18px !important;
+              height: 18px !important;
+              padding: 0 !important;
+              line-height: 18px !important;
+              right: 2px !important;
+              top: 2px !important;
+            }
+            .custom-popup .mapboxgl-popup-content {
+              padding: 10px 14px 10px 10px !important;
+              min-width: 160px !important;
+            }
+          </style>
+          <div style="font-family: Inter, Arial, sans-serif; text-align: center;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">📍 Current Location</div>
+            <div style="display: flex; justify-content: space-around; align-items: center; gap: 12px; margin-top: 6px;">
+              <div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Speed</div>
+                <div style="font-size: 18px; font-weight: bold; color: #2563eb;">${Math.round(speedKmh)}</div>
+                <div style="font-size: 10px; color: #888;">km/h</div>
+              </div>
+              <div style="width: 1px; height: 40px; background: #e0e0e0;"></div>
+              <div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Risk</div>
+                <div style="font-size: 18px; font-weight: bold; color: ${riskColor};">${currentRisk || '--'}</div>
+                <div style="font-size: 10px; color: #888;">score</div>
+              </div>
+            </div>
+          </div>`
+        )
+      }
+    }
     mapRef.current.flyTo({ center: [lon, lat], speed: 0.6, zoom: 15 })
     const now = Date.now()
     if (now - lastApiAt.current > 5000) {
       lastApiAt.current = now
-      const report = await fetchRisk(lat, lon, Math.round(speedKmh))
-      if (report && currentMarkerRef.current) {
-        const popup = new mapboxgl.Popup({ offset: 14 }).setHTML(buildPopupHtml(report))
-        currentMarkerRef.current.setPopup(popup)
-        popup.addTo(mapRef.current)
-      }
+      await fetchRisk(lat, lon, Math.round(speedKmh))
+      // Don't replace the popup - it will update automatically via the else block above
     }
   }
 
@@ -331,6 +533,59 @@ export default function MapComponent({ onTrackingChange }) {
   const safeString = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const buildPopupHtml = (report) => !report ? '<div><strong>No data</strong></div>' : `<div style="font-family: Inter, Arial, sans-serif; max-width:240px"><strong>Risk: ${safeString(report.risk_level)}</strong><div>Score: ${safeString(report.overall_risk_score)}</div><hr/><div><strong>Weather:</strong> ${safeString(report.factors.weather.description)}</div><div><strong>Speed:</strong> ${safeString(report.factors.current_speed.speed_kmh)} km/h</div><div>${safeString(report.factors.accident_hotspot.message)}</div></div>`
   const handleAlertDismiss = () => { setShowAlert(false); setAlertReport(null) }
+
+  // Auto-update marker popup every 1.5 seconds with current speed and risk
+  useEffect(() => {
+    if (!isTracking || !currentMarkerRef.current) return
+
+    const updatePopup = () => {
+      const popup = currentMarkerRef.current?.getPopup()
+      if (!popup || !popup.isOpen()) return
+
+      const currentRisk = riskReport?.overall_risk_score
+      const riskColor = currentRisk ? getColorForScore(currentRisk) : '#999'
+      const speed = currentSpeed
+
+      popup.setHTML(
+        `<style>
+          .mapboxgl-popup-close-button {
+            font-size: 14px !important;
+            width: 18px !important;
+            height: 18px !important;
+            padding: 0 !important;
+            line-height: 18px !important;
+            right: 2px !important;
+            top: 2px !important;
+          }
+          .custom-popup .mapboxgl-popup-content {
+            padding: 10px 14px 10px 10px !important;
+            min-width: 160px !important;
+          }
+        </style>
+        <div style="font-family: Inter, Arial, sans-serif; text-align: center;">
+          <div style="font-size: 10px; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">📍 Current Location</div>
+          <div style="display: flex; justify-content: space-around; align-items: center; gap: 12px; margin-top: 6px;">
+            <div>
+              <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Speed</div>
+              <div style="font-size: 18px; font-weight: bold; color: #2563eb;">${speed}</div>
+              <div style="font-size: 10px; color: #888;">km/h</div>
+            </div>
+            <div style="width: 1px; height: 40px; background: #e0e0e0;"></div>
+            <div>
+              <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Risk</div>
+              <div style="font-size: 18px; font-weight: bold; color: ${riskColor};">${currentRisk || '--'}</div>
+              <div style="font-size: 10px; color: #888;">score</div>
+            </div>
+          </div>
+        </div>`
+      )
+    }
+
+    // Update popup every 1.5 seconds
+    const intervalId = setInterval(updatePopup, 1500)
+
+    return () => clearInterval(intervalId)
+  }, [isTracking, currentSpeed, riskReport])
 
   // Enhanced UI with responsive design
   return (
@@ -345,11 +600,11 @@ export default function MapComponent({ onTrackingChange }) {
       }}>
         <input
           type="text"
-          placeholder="Enter destination (e.g., Hawa Mahal, Jaipur)"
+          placeholder="Enter destination (e.g., JECRC University, Jaipur)"
           value={destinationQuery}
           onChange={(e) => setDestinationQuery(e.target.value)}
           style={{ 
-            flex: '1 1 200px', 
+            flex: '1 1 200px',
             padding: '10px 12px', 
             border: '1px solid #ddd', 
             borderRadius: '6px',
@@ -492,7 +747,7 @@ export default function MapComponent({ onTrackingChange }) {
           {riskReport ? (
             <div>
               <strong>Latest Risk Score: {riskReport.overall_risk_score}</strong>
-              <span style={{ 
+              <span style={{
                 color: getColorForScore(riskReport.overall_risk_score),
                 fontWeight: 'bold',
                 marginLeft: '0.5rem'
